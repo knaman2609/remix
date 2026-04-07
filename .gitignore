@@ -1,0 +1,10 @@
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.env
+uploads/
+stems/
+exports/
+.DS_Store
+*.egg-info/

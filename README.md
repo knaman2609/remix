@@ -1,0 +1,158 @@
+# Remix Playground
+
+Upload any song → AI splits it into stems → swap any stem's style → mix and export.
+
+```
+┌─────────────────────────────────────────────────┐
+│  Frontend (React + Vite)                        │
+│  ├─ Tone.js        → audio playback/mixing      │
+│  ├─ wavesurfer.js  → waveform visualization     │
+│  └─ API client     → talks to backend           │
+└──────────────┬──────────────────────────────────┘
+               │ HTTP
+┌──────────────▼──────────────────────────────────┐
+│  Backend (FastAPI + Python)                     │
+│  ├─ Demucs         → stem separation            │
+│  ├─ Lyria RealTime → AI stem regeneration       │
+│  ├─ ffmpeg         → audio export/mixing        │
+│  └─ Gemini API     → song analysis/suggestions  │
+└─────────────────────────────────────────────────┘
+```
+
+## Quick start
+
+### Option A: Docker (recommended)
+
+```bash
+# 1. Clone and configure
+cp .env.example .env
+# Edit .env and add your Gemini API key (free at https://aistudio.google.com/apikey)
+
+# 2. Start everything
+docker compose up --build
+
+# 3. Open http://localhost:3000
+```
+
+### Option B: Manual setup
+
+**Backend:**
+```bash
+cd backend
+
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate  # or venv\Scripts\activate on Windows
+
+# Install dependencies (requires Python 3.10+)
+pip install -r requirements.txt
+
+# Set your Gemini API key
+export GEMINI_API_KEY="your_key_here"
+
+# Start the server
+python server.py
+# → runs on http://localhost:8000
+```
+
+**Frontend:**
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start dev server (proxies API calls to localhost:8000)
+npm run dev
+# → runs on http://localhost:3000
+```
+
+## How it works
+
+### 1. Upload
+User drops an audio file (MP3/WAV/FLAC). The backend saves it and starts Demucs.
+
+### 2. Separate (Demucs)
+[Demucs htdemucs](https://github.com/facebookresearch/demucs) splits the song into 4 stems:
+- **drums** — all percussion
+- **bass** — bass instruments
+- **vocals** — singing/speech
+- **other** — everything else (melody, chords, pads, etc.)
+
+Output: 4 WAV files stored on disk, served via static file routes.
+
+### 3. Play & Mix (Tone.js + wavesurfer.js)
+The frontend loads each stem as a Tone.Player (loop-synced playback) and renders its waveform with wavesurfer.js. Users can:
+- **Mute (M)** / **Solo (S)** individual stems
+- Adjust **volume** per stem
+- See the audio waveform in the stem's signature color
+
+### 4. Swap Style (Lyria RealTime)
+When the user clicks "Swap style" on a stem and picks a new style, the frontend calls `POST /api/swap-stem` with:
+```json
+{
+  "job_id": "abc123",
+  "stem": "drums",
+  "style_prompt": "Jazz Brushes",
+  "duration_seconds": 30
+}
+```
+The backend calls Google's Lyria RealTime API via the Gemini SDK to generate a replacement stem matching that style. The new audio replaces the original in the Tone.js player.
+
+### 5. Export (ffmpeg)
+`POST /api/export` mixes the selected stems (original or swapped) into a single WAV file using ffmpeg's `amix` filter.
+
+## API endpoints
+
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | `/api/upload` | Upload audio file, starts Demucs |
+| GET | `/api/status/{job_id}` | Poll separation progress |
+| POST | `/api/swap-stem` | Regenerate a stem via Lyria |
+| POST | `/api/analyze?job_id=X` | Get key/BPM/remix suggestions |
+| POST | `/api/export` | Mix stems into final WAV |
+| GET | `/api/health` | Check Demucs/ffmpeg/Lyria status |
+| GET | `/stems/...` | Static stem file serving |
+| GET | `/exports/...` | Static export file serving |
+
+## Requirements
+
+- **Python 3.10+** with PyTorch (CPU works, GPU is 5-10x faster for Demucs)
+- **Node.js 18+**
+- **ffmpeg** installed and on PATH
+- **Gemini API key** (free tier) for Lyria stem regeneration
+
+### GPU note
+Demucs runs on CPU but is slow (~2-3 min per song). With a CUDA GPU, separation takes 15-30 seconds. The Docker setup auto-detects NVIDIA GPUs.
+
+## Without Gemini API key
+
+The app still works! Demucs separation, playback, mixing, mute/solo, volume — all functional. The "Swap style" button will generate silence placeholders instead of AI-regenerated stems. Add the key later when ready.
+
+## Project structure
+
+```
+remix-playground/
+├── docker-compose.yml
+├── .env.example
+├── backend/
+│   ├── Dockerfile
+│   ├── requirements.txt
+│   └── server.py            ← FastAPI server (Demucs + Lyria + ffmpeg)
+└── frontend/
+    ├── Dockerfile
+    ├── package.json
+    ├── vite.config.js
+    ├── index.html
+    └── src/
+        ├── main.jsx
+        ├── index.css
+        ├── api.js            ← API client
+        ├── App.jsx           ← Main app with upload/play/export
+        └── components/
+            └── StemLane.jsx   ← Single stem with wavesurfer + controls
+```
+
+## License
+
+MIT
