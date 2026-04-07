@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import StemLane from './components/StemLane';
+import MidiKeyboard from './components/MidiKeyboard';
 import { uploadSong, pollStatus, swapStem, exportMix, healthCheck } from './api';
 
 const STEM_ORDER = ['drums', 'bass', 'vocals', 'other'];
@@ -74,6 +75,7 @@ export default function App() {
   const [exportUrl, setExportUrl] = useState(null);
   const [stemChoices, setStemChoices] = useState({});
   const [backendOk, setBackendOk] = useState(null);
+  const [showKeyboard, setShowKeyboard] = useState(false);
   // Per-stem state: { drums: { muted: false, solo: false, volume: 80, style: 'Original' }, ... }
   const [stemStates, setStemStates] = useState({});
   const engineRef = useRef(null);
@@ -339,7 +341,15 @@ export default function App() {
               Backend: {backendOk === 'ok' ? '● Connected' : backendOk === 'degraded' ? '● Degraded (some services missing)' : '● Unreachable — start the backend first'}
             </div>
           )}
+          <button onClick={() => setShowKeyboard(!showKeyboard)} style={{
+            background: showKeyboard ? '#E24B4A' : '#111', border: `1px solid ${showKeyboard ? '#E24B4A' : '#2a2a2a'}`,
+            borderRadius: 20, padding: '5px 14px', fontSize: 11, cursor: 'pointer', marginTop: 10,
+            color: showKeyboard ? '#fff' : '#777', fontWeight: 600, fontFamily: 'inherit',
+          }}>♫ MIDI Keyboard</button>
         </div>
+
+        {/* MIDI Keyboard */}
+        {showKeyboard && <MidiKeyboard onClose={() => setShowKeyboard(false)} />}
 
         {/* Error bar */}
         {error && (
