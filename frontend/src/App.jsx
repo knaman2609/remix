@@ -226,19 +226,28 @@ export default function App() {
     setSwapping(prev => ({ ...prev, [stemName]: true }));
 
     try {
-      const result = await swapStem(jobId, stemName, stylePrompt, duration);
+      let newUrl;
+
+      if (stylePrompt === 'Original') {
+        // Revert to the original Demucs stem
+        newUrl = stems[stemName];
+        setSwappedStems(prev => { const next = { ...prev }; delete next[stemName]; return next; });
+        setStemChoices(prev => { const next = { ...prev }; delete next[stemName]; return next; });
+      } else {
+        const result = await swapStem(jobId, stemName, stylePrompt, duration);
+        newUrl = result.url;
+        setSwappedStems(prev => ({ ...prev, [stemName]: newUrl }));
+        setStemChoices(prev => ({ ...prev, [stemName]: stylePrompt }));
+      }
 
       // Update the engine with new audio
       if (engineRef.current) {
         const wasPlaying = isPlaying;
         if (wasPlaying) engineRef.current.stop();
-        await engineRef.current.loadStem(stemName, result.url);
+        await engineRef.current.loadStem(stemName, newUrl);
         if (wasPlaying) engineRef.current.play();
       }
 
-      // Track the swap
-      setSwappedStems(prev => ({ ...prev, [stemName]: result.url }));
-      setStemChoices(prev => ({ ...prev, [stemName]: stylePrompt }));
       setStemStates(prev => ({
         ...prev, [stemName]: { ...prev[stemName], style: stylePrompt },
       }));

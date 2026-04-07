@@ -13,6 +13,9 @@ import subprocess
 import asyncio
 from pathlib import Path
 from typing import Optional
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
@@ -31,7 +34,6 @@ for d in [UPLOAD_DIR, STEMS_DIR, EXPORTS_DIR]:
     d.mkdir(exist_ok=True)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-genai_client = genai.Client(api_key=GEMINI_API_KEY) if GEMINI_API_KEY else None
 
 app = FastAPI(title="Remix Playground API")
 app.add_middleware(
@@ -158,58 +160,44 @@ async def generate_silence(duration_seconds: float, output_path: str):
 
 async def call_lyria_realtime(prompt: str, duration_seconds: float, output_path: str) -> str:
     """
-    Call Google Lyria RealTime via Gemini API to generate a replacement stem.
-    Falls back to generating silence if API is unavailable.
+    Call Google Lyria via Gemini API to generate a replacement stem.
+    Raises on failure instead of silently falling back.
     """
-    if not genai_client:
-        await generate_silence(duration_seconds, output_path)
-        return output_path
+    if not GEMINI_API_KEY:
+        raise HTTPException(503, "No Gemini API key configured — cannot call Lyria")
 
-    try:
-        # Use Gemini API with Lyria model for music generation
-        import aiohttp
-        import base64
+    import aiohttp
+    import base64
 
-        url = "https://generativelanguage.googleapis.com/v1beta/models/lyria-realtime:generateContent"
-        headers = {"Content-Type": "application/json"}
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "responseModalities": ["AUDIO"],
-                "speechConfig": {
-                    "voiceConfig": {"prebuiltVoiceConfig": {"voiceName": "Lyria"}}
-                },
-            },
-        }
+    url = "https://generativelanguage.googleapis.com/v1beta/models/lyria-3-clip-preview:generateContent"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "responseModalities": ["AUDIO"],
+        },
+    }
 
-        async with aiohttp.ClientSession() as session:
-            async with session.post(
-                f"{url}?key={GEMINI_API_KEY}",
-                json=payload, headers=headers,
-            ) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    # Extract audio from response
-                    parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
-                    for part in parts:
-                        if "inlineData" in part:
-                            audio_bytes = base64.b64decode(part["inlineData"]["data"])
-                            with open(output_path, "wb") as f:
-                                f.write(audio_bytes)
-                            return output_path
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            f"{url}?key={GEMINI_API_KEY}",
+            json=payload, headers=headers,
+        ) as resp:
+            if resp.status != 200:
+                error_text = await resp.text()
+                print(f"Lyria API error: {resp.status} - {error_text[:500]}")
+                raise HTTPException(502, f"Lyria API error ({resp.status}): {error_text[:300]}")
 
-                    # No audio in response — fall through to fallback
-                    print(f"Lyria response had no audio parts")
-                else:
-                    error_text = await resp.text()
-                    print(f"Lyria API error: {resp.status} - {error_text[:300]}")
+            data = await resp.json()
+            parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+            for part in parts:
+                if "inlineData" in part:
+                    audio_bytes = base64.b64decode(part["inlineData"]["data"])
+                    with open(output_path, "wb") as f:
+                        f.write(audio_bytes)
+                    return output_path
 
-    except Exception as e:
-        print(f"Lyria call failed: {e}")
-
-    # Fallback: generate silence
-    await generate_silence(duration_seconds, output_path)
-    return output_path
+            raise HTTPException(502, "Lyria returned no audio in response")
 
 
 # ---------------------------------------------------------------------------
@@ -292,13 +280,18 @@ async def swap_stem(req: SwapRequest):
     if job["status"] != "ready":
         raise HTTPException(400, "Stems not ready yet")
 
-    # Build a rich prompt for Lyria
-    prompt = f"""Generate a {req.stem} track in this style: {req.style_prompt}.
-Match the following characteristics:
-- Duration: {req.duration_seconds} seconds
-- High quality, 44100Hz stereo
-- Suitable for mixing with other stems
-- Clean, well-produced sound"""
+    # Build a focused prompt — emphasize ONLY the target instrument
+    stem_instructions = {
+        "drums": "ONLY drums and percussion, no melodic instruments, no bass, no vocals, no guitar, no piano",
+        "bass": "ONLY bass instrument, no drums, no vocals, no melody, no chords",
+        "vocals": "ONLY vocal melody or vocal harmonies, no instruments",
+        "other": "ONLY melodic instruments (piano, guitar, synth, strings), no drums, no bass, no vocals",
+    }
+    isolation = stem_instructions.get(req.stem, f"ONLY {req.stem}, no other instruments")
+
+    prompt = f"""Solo isolated {req.stem} track. Style: {req.style_prompt}.
+{isolation}.
+This is a single stem meant to be mixed with other separate stems. Keep it clean and isolated."""
 
     # Output path for the regenerated stem
     swap_id = str(uuid.uuid4())[:6]
@@ -448,7 +441,7 @@ async def health():
     except Exception:
         checks["ffmpeg"] = False
 
-    checks["lyria"] = genai_client is not None
+    checks["lyria"] = bool(GEMINI_API_KEY)
 
     return {"status": "ok" if all(checks.values()) else "degraded", "checks": checks}
 
