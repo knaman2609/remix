@@ -31,6 +31,7 @@ Upload any song → AI splits it into stems → swap any stem's style → mix an
 # 1. Clone and configure
 cp .env.example .env
 # Edit .env and add your Gemini API key (free at https://aistudio.google.com/apikey)
+# IMPORTANT: Ensure .env is in .gitignore to prevent accidental commit of API keys
 
 # 2. Start everything
 docker compose up --build
@@ -51,8 +52,8 @@ source venv/bin/activate  # or venv\Scripts\activate on Windows
 # Install dependencies (requires Python 3.10+)
 pip install -r requirements.txt
 
-# Set your Gemini API key
-export GEMINI_API_KEY="your_key_here"
+# Load your API key from .env file (prevents shell history leakage)
+source .env
 
 # Start the server
 python server.py
@@ -101,7 +102,7 @@ When the user clicks "Swap style" on a stem and picks a new style, the frontend 
   "duration_seconds": 30
 }
 ```
-The backend calls Google's Lyria RealTime API via the Gemini SDK to generate a replacement stem matching that style. The new audio replaces the original in the Tone.js player.
+The backend calls Google's Lyria RealTime API to generate a replacement stem matching that style. The new audio replaces the original in the Tone.js player.
 
 ### 5. Export (ffmpeg)
 `POST /api/export` mixes the selected stems (original or swapped) into a single WAV file using ffmpeg's `amix` filter.
