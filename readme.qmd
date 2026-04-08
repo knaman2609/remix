@@ -1,12 +1,17 @@
 ---
 title: "Remix Playground"
+author: "Remix Playground Team"
+date: today
 format:
   html:
     toc: true
-    toc-depth: 2
+    toc-depth: 3
     code-fold: true
     code-tools: true
+    code-block-bg: true
+    code-block-border-left: "#31BAE9"
     highlight-style: github
+    theme: cosmo
 ---
 
 Upload any song → AI splits it into stems → swap any stem's style → mix and export.
@@ -32,12 +37,18 @@ Upload any song → AI splits it into stems → swap any stem's style → mix an
 
 ::: {.panel-tabset}
 
-### Docker (recommended)
+### Docker (Recommended)
+
+::: {.callout-note}
+## Prerequisites
+- Docker and Docker Compose installed
+- Gemini API key (free at [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey))
+:::
 
 ```bash
 # 1. Clone and configure
 cp .env.example .env
-# Edit .env and add your Gemini API key (free at https://aistudio.google.com/apikey)
+# Edit .env and add your Gemini API key
 
 # 2. Start everything
 docker compose up --build
@@ -46,12 +57,17 @@ docker compose up --build
 ```
 
 ::: {.callout-tip}
-## Prerequisites
-- Docker and Docker Compose installed
-- NVIDIA Docker runtime (optional, for GPU acceleration)
+The Docker setup auto-detects NVIDIA GPUs for faster processing.
 :::
 
 ### Manual Setup
+
+::: {.callout-warning}
+## Requirements
+- Python 3.10+
+- Node.js 18+
+- ffmpeg installed and on PATH
+:::
 
 **Backend:**
 
@@ -85,10 +101,6 @@ npm install
 npm run dev
 # → runs on http://localhost:3000
 ```
-
-::: {.callout-note}
-The dev server proxies API calls to `localhost:8000` automatically.
-:::
 
 :::
 
@@ -142,14 +154,14 @@ The backend calls Google's Lyria RealTime API via the Gemini SDK to generate a r
 
 | Method | Path | Description |
 |--------|------|-------------|
-| POST | `/api/upload` | Upload audio file, starts Demucs |
-| GET | `/api/status/{job_id}` | Poll separation progress |
-| POST | `/api/swap-stem` | Regenerate a stem via Lyria |
-| POST | `/api/analyze?job_id=X` | Get key/BPM/remix suggestions |
-| POST | `/api/export` | Mix stems into final WAV |
-| GET | `/api/health` | Check Demucs/ffmpeg/Lyria status |
-| GET | `/stems/...` | Static stem file serving |
-| GET | `/exports/...` | Static export file serving |
+| `POST` | `/api/upload` | Upload audio file, starts Demucs |
+| `GET` | `/api/status/{job_id}` | Poll separation progress |
+| `POST` | `/api/swap-stem` | Regenerate a stem via Lyria |
+| `POST` | `/api/analyze?job_id=X` | Get key/BPM/remix suggestions |
+| `POST` | `/api/export` | Mix stems into final WAV |
+| `GET` | `/api/health` | Check Demucs/ffmpeg/Lyria status |
+| `GET` | `/stems/...` | Static stem file serving |
+| `GET` | `/exports/...` | Static export file serving |
 
 ## Requirements
 
@@ -162,7 +174,7 @@ The backend calls Google's Lyria RealTime API via the Gemini SDK to generate a r
 :::
 
 ::: {.callout-tip}
-## GPU Acceleration
+## GPU Note
 Demucs runs on CPU but is slow (~2-3 min per song). With a CUDA GPU, separation takes 15-30 seconds. The Docker setup auto-detects NVIDIA GPUs.
 :::
 
@@ -197,4 +209,4 @@ remix-playground/
 
 ## License
 
-MIT
+MIT License
