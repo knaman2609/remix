@@ -39,16 +39,16 @@ Upload any song → AI splits it into stems → swap any stem's style → mix an
 
 ### Docker (Recommended)
 
-::: {.callout-note}
+::: {.callout-tip}
 ## Prerequisites
 - Docker and Docker Compose installed
-- Gemini API key (free at [https://aistudio.google.com/apikey](https://aistudio.google.com/apikey))
+- NVIDIA Docker runtime (optional, for GPU acceleration)
 :::
 
 ```bash
 # 1. Clone and configure
 cp .env.example .env
-# Edit .env and add your Gemini API key
+# Edit .env and add your Gemini API key (free at https://aistudio.google.com/apikey)
 
 # 2. Start everything
 docker compose up --build
@@ -56,20 +56,12 @@ docker compose up --build
 # 3. Open http://localhost:3000
 ```
 
-::: {.callout-tip}
-The Docker setup auto-detects NVIDIA GPUs for faster processing.
-:::
-
 ### Manual Setup
 
-::: {.callout-warning}
-## Requirements
-- Python 3.10+
-- Node.js 18+
-- ffmpeg installed and on PATH
+::: {.callout-note}
+## Backend Setup
+Requires Python 3.10+ with PyTorch
 :::
-
-**Backend:**
 
 ```bash
 cd backend
@@ -89,7 +81,10 @@ python server.py
 # → runs on http://localhost:8000
 ```
 
-**Frontend:**
+::: {.callout-note}
+## Frontend Setup
+Requires Node.js 18+
+:::
 
 ```bash
 cd frontend
@@ -133,7 +128,7 @@ The frontend loads each stem as a Tone.Player (loop-synced playback) and renders
 
 ### 4. Swap Style (Lyria RealTime)
 
-When the user clicks "Swap style" on a stem and picks a new style, the frontend calls `POST /api/swap-stem`:
+When the user clicks "Swap style" on a stem and picks a new style, the frontend calls `POST /api/swap-stem` with:
 
 ```json
 {
@@ -165,7 +160,7 @@ The backend calls Google's Lyria RealTime API via the Gemini SDK to generate a r
 
 ## Requirements
 
-::: {.callout-note}
+::: {.callout-warning}
 ## System Requirements
 - **Python 3.10+** with PyTorch (CPU works, GPU is 5-10x faster for Demucs)
 - **Node.js 18+**
@@ -174,7 +169,7 @@ The backend calls Google's Lyria RealTime API via the Gemini SDK to generate a r
 :::
 
 ::: {.callout-tip}
-## GPU Note
+## GPU Acceleration
 Demucs runs on CPU but is slow (~2-3 min per song). With a CUDA GPU, separation takes 15-30 seconds. The Docker setup auto-detects NVIDIA GPUs.
 :::
 
