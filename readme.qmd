@@ -31,10 +31,11 @@ Upload any song → AI splits it into stems → swap any stem's style → mix an
 # 1. Clone and configure
 cp .env.example .env
 # Edit .env and add your Gemini API key (free at https://aistudio.google.com/apikey)
-# IMPORTANT: Ensure .env is in .gitignore to prevent accidental commit of API keys
+# CRITICAL: Ensure .env is in .gitignore to prevent accidental commit of API keys
+grep -q '^\.env$' .gitignore || echo '.env' >> .gitignore
 
-# 2. Start everything
-docker compose up --build
+# 2. Start everything (use 'docker-compose' for v1, 'docker compose' for v2+)
+docker compose up --build  # or: docker-compose up --build
 
 # 3. Open http://localhost:3000
 ```
@@ -75,7 +76,7 @@ npm run dev
 ## How it works
 
 ### 1. Upload
-User drops an audio file (MP3/WAV/FLAC). The backend saves it and starts Demucs.
+User drops an audio file (MP3/WAV/FLAC, max 50MB, max 10 minutes). The backend saves it and starts Demucs. Concurrent uploads are limited to 3 per IP.
 
 ### 2. Separate (Demucs)
 [Demucs htdemucs](https://github.com/facebookresearch/demucs) splits the song into 4 stems:
@@ -84,7 +85,7 @@ User drops an audio file (MP3/WAV/FLAC). The backend saves it and starts Demucs.
 - **vocals** — singing/speech
 - **other** — everything else (melody, chords, pads, etc.)
 
-Output: 4 WAV files stored on disk, served via static file routes.
+Output: 4 WAV files stored on disk (TTL: 24 hours, auto-cleanup runs hourly), served via authenticated static file routes requiring valid job_id.
 
 ### 3. Play & Mix (Tone.js + wavesurfer.js)
 The frontend loads each stem as a Tone.Player (loop-synced playback) and renders its waveform with wavesurfer.js. Users can:
@@ -99,10 +100,10 @@ When the user clicks "Swap style" on a stem and picks a new style, the frontend 
   "job_id": "abc123",
   "stem": "drums",
   "style_prompt": "Jazz Brushes",
-  "duration_seconds": 30
+  "duration_seconds": 30  // Range: 5-60 seconds, default: 30
 }
 ```
-The backend calls Google's Lyria RealTime API to generate a replacement stem matching that style. The new audio replaces the original in the Tone.js player.
+The backend calls Google's Lyria RealTime API (via Gemini SDK using the `lyria-realtime` model) to generate a replacement stem matching that style. The new audio replaces the original in the Tone.js player.
 
 ### 5. Export (ffmpeg)
 `POST /api/export` mixes the selected stems (original or swapped) into a single WAV file using ffmpeg's `amix` filter.
@@ -114,11 +115,11 @@ The backend calls Google's Lyria RealTime API to generate a replacement stem mat
 | POST | `/api/upload` | Upload audio file, starts Demucs |
 | GET | `/api/status/{job_id}` | Poll separation progress |
 | POST | `/api/swap-stem` | Regenerate a stem via Lyria |
-| POST | `/api/analyze?job_id=X` | Get key/BPM/remix suggestions |
+| POST | `/api/analyze/{job_id}` | Get key/BPM/remix suggestions |
 | POST | `/api/export` | Mix stems into final WAV |
 | GET | `/api/health` | Check Demucs/ffmpeg/Lyria status |
-| GET | `/stems/...` | Static stem file serving |
-| GET | `/exports/...` | Static export file serving |
+| GET | `/stems/{job_id}/{stem}.wav` | Static stem file serving (auth: valid job_id required) |
+| GET | `/exports/{job_id}.wav` | Static export file serving (auth: valid job_id required) |
 
 ## Requirements
 
@@ -132,7 +133,7 @@ Demucs runs on CPU but is slow (~2-3 min per song). With a CUDA GPU, separation 
 
 ## Without Gemini API key
 
-The app still works! Demucs separation, playback, mixing, mute/solo, volume — all functional. The "Swap style" button will generate silence placeholders instead of AI-regenerated stems. Add the key later when ready.
+The app still works! Demucs separation, playback, mixing, mute/solo, volume — all functional. The "Swap style" button returns HTTP 503 Service Unavailable with JSON body `{"error": "GEMINI_API_KEY not configured", "fallback": "silence"}` and the frontend generates silent WAV placeholders (1-second zero-filled buffer looped to requested duration). Add the key later when ready.
 
 ## Project structure
 
