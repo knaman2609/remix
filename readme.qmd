@@ -34,7 +34,7 @@ Upload any song → AI splits it into stems → swap any stem's style → mix an
 cp .env.example .env
 # Edit .env and add your Gemini API key (free at https://aistudio.google.com/apikey)
 
-# 2. Start everything
+# 2. Start everything (requires Docker Compose V2; use `docker-compose` for older versions)
 docker compose up --build
 
 # 3. Open http://localhost:3000
@@ -53,8 +53,11 @@ source venv/bin/activate  # or venv\Scripts\activate on Windows
 # Install dependencies (requires Python 3.10+)
 pip install -r requirements.txt
 
-# Set your Gemini API key
+# Set your Gemini API key (use .env files in production; never commit secrets)
+# Linux/macOS:
 export GEMINI_API_KEY="your_key_here"
+# Windows PowerShell:
+# $env:GEMINI_API_KEY="your_key_here"
 
 # Start the server
 python server.py
@@ -115,7 +118,7 @@ The backend calls Google's Lyria RealTime API via the Gemini SDK to generate a r
 | POST | `/api/upload` | Upload audio file, starts Demucs |
 | GET | `/api/status/{job_id}` | Poll separation progress |
 | POST | `/api/swap-stem` | Regenerate a stem via Lyria |
-| POST | `/api/analyze?job_id=X` | Get key/BPM/remix suggestions |
+| POST | `/api/analyze/{job_id}` | Get key/BPM/remix suggestions |
 | POST | `/api/export` | Mix stems into final WAV |
 | GET | `/api/health` | Check Demucs/ffmpeg/Lyria status |
 | GET | `/stems/...` | Static stem file serving |
