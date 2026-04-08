@@ -39,10 +39,11 @@ Upload any song → AI splits it into stems → swap any stem's style → mix an
 
 ### Docker (Recommended)
 
-::: {.callout-tip}
+::: {.callout-note}
 ## Prerequisites
 - Docker and Docker Compose installed
 - NVIDIA Docker runtime (optional, for GPU acceleration)
+- Gemini API key (free at https://aistudio.google.com/apikey)
 :::
 
 ```bash
@@ -157,6 +158,112 @@ The backend calls Google's Lyria RealTime API via the Gemini SDK to generate a r
 | `GET` | `/api/health` | Check Demucs/ffmpeg/Lyria status |
 | `GET` | `/stems/...` | Static stem file serving |
 | `GET` | `/exports/...` | Static export file serving |
+
+### Request/Response Examples
+
+#### `POST /api/upload`
+
+**Request:**
+```bash
+curl -X POST -F "file=@song.mp3" http://localhost:8000/api/upload
+```
+
+**Response (200 OK):**
+```json
+{
+  "job_id": "abc123",
+  "filename": "song.mp3",
+  "status": "processing"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - No file provided or invalid file type
+- `413 Payload Too Large` - File exceeds size limit
+- `500 Internal Server Error` - Demucs initialization failed
+
+#### `GET /api/status/{job_id}`
+
+**Response (200 OK) - Processing:**
+```json
+{
+  "job_id": "abc123",
+  "status": "processing",
+  "progress": 45,
+  "stems_ready": []
+}
+```
+
+**Response (200 OK) - Complete:**
+```json
+{
+  "job_id": "abc123",
+  "status": "complete",
+  "stems": {
+    "drums": "/stems/abc123/drums.wav",
+    "bass": "/stems/abc123/bass.wav",
+    "vocals": "/stems/abc123/vocals.wav",
+    "other": "/stems/abc123/other.wav"
+  }
+}
+```
+
+**Error Responses:**
+- `404 Not Found` - Job ID does not exist
+
+#### `POST /api/swap-stem`
+
+**Request:**
+```json
+{
+  "job_id": "abc123",
+  "stem": "drums",
+  "style_prompt": "Jazz Brushes",
+  "duration_seconds": 30
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "job_id": "abc123",
+  "stem": "drums",
+  "audio_url": "/stems/abc123/drums_swapped.wav",
+  "style_applied": "Jazz Brushes"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Invalid stem type or missing parameters
+- `404 Not Found` - Job ID does not exist
+- `503 Service Unavailable` - Lyria API unavailable or rate limited
+- `500 Internal Server Error` - Stem generation failed
+
+#### `POST /api/export`
+
+**Request:**
+```json
+{
+  "job_id": "abc123",
+  "stems": ["drums", "bass", "vocals", "other"],
+  "format": "wav"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "job_id": "abc123",
+  "download_url": "/exports/abc123/mix.wav",
+  "format": "wav",
+  "duration_seconds": 180
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` - Invalid stem selection or format
+- `404 Not Found` - Job ID or stem files not found
+- `500 Internal Server Error` - ffmpeg mixing failed
 
 ## Requirements
 
