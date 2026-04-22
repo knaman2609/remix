@@ -9,6 +9,7 @@ export default defineConfig({
       "/api": "http://localhost:8000",
       "/stems": "http://localhost:8000",
       "/exports": "http://localhost:8000",
+      "/uploads": "http://localhost:8000",
     },
   },
 });

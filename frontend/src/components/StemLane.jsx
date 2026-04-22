@@ -14,7 +14,7 @@ const STEM_META = {
   vocals: { color:"#D4537E", icon:"◎", label:"Vocals" },
 };
 
-function StemLane({ stemName, audioUrl, state, onMute, onSolo, onVolume, onSwap }) {
+function StemLane({ stemName, audioUrl, state, onMute, onSolo, onVolume, onSwap, onLoadSwap, previousSwaps = [] }) {
   const waveRef = useRef(null);
   const wsRef = useRef(null);
   const [showStyles, setShowStyles] = useState(false);
@@ -45,6 +45,12 @@ function StemLane({ stemName, audioUrl, state, onMute, onSolo, onVolume, onSwap 
     setSwapping(false);
   };
 
+  const handleLoadPrevious = async (swap) => {
+    setSwapping(true); setShowStyles(false);
+    try { await onLoadSwap(stemName, swap.style, swap.url); } catch(e) { console.error(e); }
+    setSwapping(false);
+  };
+
   return (
     <div style={{ background:"#0a0a0a", borderRadius:12, padding:"14px 16px",
       border:`1px solid ${state.solo ? meta.color : "#222"}`, position:"relative" }}>
@@ -53,7 +59,7 @@ function StemLane({ stemName, audioUrl, state, onMute, onSolo, onVolume, onSwap 
           justifyContent:"center", background:"rgba(0,0,0,0.8)", borderRadius:12, zIndex:5, gap:10 }}>
           <div style={{ width:20, height:20, border:"2px solid #333", borderTopColor:meta.color,
             borderRadius:"50%", animation:"spin 0.7s linear infinite" }}/>
-          <span style={{ fontSize:13, color:meta.color, fontWeight:500 }}>Regenerating with Lyria...</span>
+          <span style={{ fontSize:13, color:meta.color, fontWeight:500 }}>Loading...</span>
         </div>
       )}
       <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
@@ -69,21 +75,49 @@ function StemLane({ stemName, audioUrl, state, onMute, onSolo, onVolume, onSwap 
         <button onClick={()=>onSolo(stemName)} style={{ background:state.solo?meta.color+"33":"#1a1a1a",
           border:"1px solid #333", borderRadius:6, padding:"4px 10px", fontSize:11, fontWeight:700,
           cursor:"pointer", color:state.solo?meta.color:"#777", fontFamily:"inherit" }}>S</button>
-        <button onClick={()=>setShowStyles(!showStyles)} style={{
-          background:state.style&&state.style!=="Original"?meta.color:"#1a1a1a",
-          border:`1px solid ${state.style&&state.style!=="Original"?meta.color:"#333"}`,
-          borderRadius:6, padding:"4px 12px", fontSize:11, fontWeight:600, cursor:"pointer",
-          fontFamily:"inherit", color:state.style&&state.style!=="Original"?"#fff":"#777" }}>Swap ▾</button>
+        {onSwap && (
+          <button onClick={()=>setShowStyles(!showStyles)} style={{
+            background:state.style&&state.style!=="Original"?meta.color:"#1a1a1a",
+            border:`1px solid ${state.style&&state.style!=="Original"?meta.color:"#333"}`,
+            borderRadius:6, padding:"4px 12px", fontSize:11, fontWeight:600, cursor:"pointer",
+            fontFamily:"inherit", color:state.style&&state.style!=="Original"?"#fff":"#777" }}>Swap ▾</button>
+        )}
       </div>
       {showStyles && (
-        <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom:10, padding:"10px 0",
-          borderTop:"1px solid #1a1a1a" }}>
-          {styles.map(s=>(
-            <button key={s} onClick={()=>handleSwap(s)} style={{ background:state.style===s?meta.color:"#111",
-              border:`1px solid ${state.style===s?meta.color:"#2a2a2a"}`, borderRadius:20, padding:"5px 14px",
-              fontSize:12, cursor:"pointer", color:state.style===s?"#fff":"#aaa", fontWeight:500,
-              fontFamily:"inherit" }}>{s}</button>
-          ))}
+        <div style={{ padding:"10px 0", borderTop:"1px solid #1a1a1a", marginBottom:10 }}>
+          {/* Generate new styles */}
+          <div style={{ fontSize:10, color:"#555", fontWeight:600, letterSpacing:1, marginBottom:6 }}>GENERATE NEW</div>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:6, marginBottom: previousSwaps.length > 0 ? 12 : 0 }}>
+            {styles.map(s=>(
+              <button key={s} onClick={()=>handleSwap(s)} style={{ background:state.style===s?meta.color:"#111",
+                border:`1px solid ${state.style===s?meta.color:"#2a2a2a"}`, borderRadius:20, padding:"5px 14px",
+                fontSize:12, cursor:"pointer", color:state.style===s?"#fff":"#aaa", fontWeight:500,
+                fontFamily:"inherit" }}>{s}</button>
+            ))}
+          </div>
+
+          {/* Previously generated swaps */}
+          {previousSwaps.length > 0 && (
+            <>
+              <div style={{ fontSize:10, color:"#555", fontWeight:600, letterSpacing:1, marginBottom:6 }}>PREVIOUS STEMS</div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                {previousSwaps.map((swap, i) => {
+                  const songLabel = (swap.from_song || "").replace(/\.mp3$/i, "").split(" - ")[0].split(" – ")[0].trim();
+                  const label = swap.style === "Original"
+                    ? `${songLabel} — ${meta.label}`
+                    : `${songLabel} — ${swap.style}`;
+                  return (
+                    <button key={i} onClick={() => handleLoadPrevious(swap)} style={{
+                      background: "#111", border: `1px solid ${meta.color}44`,
+                      borderRadius: 20, padding: "5px 14px", cursor: "pointer",
+                      fontSize: 11, fontWeight: 500, fontFamily: "inherit",
+                      color: meta.color,
+                    }}>{label}</button>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
       <div style={{ display:"flex", alignItems:"center", gap:10 }}>

@@ -8,3 +8,5 @@ stems/
 exports/
 .DS_Store
 *.egg-info/
+backend/venv/
+.claude
